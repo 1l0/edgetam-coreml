@@ -1,0 +1,12 @@
+edgetam-coreml
+Core ML conversion of EdgeTAM.
+
+This repository converts and redistributes model weights from EdgeTAM
+(https://github.com/facebookresearch/EdgeTAM, commit 7711e012a30a2402c4eaab637bdb00a521302c91),
+Copyright (c) Meta Platforms, Inc. and affiliates, licensed under the Apache License, Version 2.0 (LICENSE).
+EdgeTAM builds on SAM 2 (https://github.com/facebookresearch/sam2), also Apache-2.0, Copyright (c) Meta Platforms,
+Inc. and affiliates.
+
+The converted .mlpackage files are a derivative work of the EdgeTAM checkpoint: the network is re-expressed for
+Core ML (fixed rotary tables, branch-free prompt handling, fp16) and its weights are otherwise unchanged unless a
+release notes a quantized variant. Keep this NOTICE and LICENSE with any copy of the packages.

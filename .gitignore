@@ -1,0 +1,10 @@
+__pycache__/
+*.mlpackage/
+*.mlmodelc/
+*.zip
+out/
+out-fp32/
+masks/
+frames/
+parity*.json
+!results/parity*.json
