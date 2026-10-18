@@ -30,7 +30,7 @@ Prebuilt packages are on the [Releases](../../releases/latest) page: unzip them 
 silicon, [uv](https://github.com/astral-sh/uv) and git. ffmpeg is needed only to read video files.
 
 Releases from v1.2 also carry `edgetam-coreml-<version>-masked-propagator.zip`: an `EdgeTAMVideoPropagator` built
-with `--mask-empty-slots`, a drop-in replacement that tracks like stock EdgeTAM for about 1.6 ms more a frame (see
+with `--mask-empty-slots`, a drop-in replacement that tracks much closer to stock EdgeTAM for about 1.6 ms more a frame (see
 [Neural Engine and attention masks](#neural-engine-and-attention-masks)). It treats an all-zero slot as empty, so
 leave unused slots as zeros.
 
@@ -148,8 +148,11 @@ What the rows show:
   attention, because the memory attention's key and value projections have biases. That matters most in the first
   frames after a prompt, while the bank is filling (frames 1–6 for memories, 1–15 for pointers). Masks stay close
   (mean IoU 0.98), but they are not stock EdgeTAM's.
-- **Masking the empty slots tracks like stock EdgeTAM.** The one fp32 miss is a tie between two candidates on one
-  frame of the gap sequence.
+- **Masking the empty slots brings tracking close to stock EdgeTAM.** In fp32 four of five sequences are within the
+  bounds. The fifth misses on frame 38 of the gap sequence (memory cosine 0.972, pointer 0.957, mask IoU 0.979),
+  where two candidates have the same predicted IoU (0.96338) and Core ML picks the other one. In the shipped fp16 no
+  sequence is within the bounds, because fp16 rounding remains. The masked build is still much closer to stock than the
+  default: pointer cosine 0.894 against 0.479 on the Neural Engine.
 
 ## Speed
 
@@ -172,22 +175,23 @@ the memory bank, so an app can encode frame n + 1 while frame n propagates.
 
 ## Neural Engine and attention masks
 
-Core ML on the Neural Engine **ignores an attention mask that comes into the model as an input**. With
-`scaled_dot_product_attention(…, attn_mask=bias)` and `bias` a model input, the compiled graph gives bit-identical
-outputs whatever the mask, while the GPU and CPU apply it. Any SAM 2 port that masks the empty slots of a fixed-size
-memory bank this way therefore attends them on the Neural Engine, and differs between backends.
+Core ML on the Neural Engine **drops the `attn_mask` of `scaled_dot_product_attention`**. With
+`scaled_dot_product_attention(…, attn_mask=bias)`, the compiled graph gives bit-identical outputs whatever the mask,
+while the GPU and CPU apply it. Any SAM 2 port that masks the empty slots of a fixed-size memory bank this way
+therefore attends them on the Neural Engine, and differs between backends.
 
-These packages make that behavior explicit:
+The default packages make that behavior explicit:
 - The empty slots are attended on every backend, as zero memories with zero positions.
 - `attention_bias` stays an input, so the interface does not change, but it is not read.
-- Tracking is the same on every backend and does not depend on the compiler.
+- Tracking is the same on every backend.
 
 `parity --attend-empty-slots` pads PyTorch's bank the same way. The "padded" rows of [Accuracy](#accuracy) are
 against it, and the "stock" rows show what attending the slots costs.
 
 `convert --mask-empty-slots` masks the empty (all-zero) slots as stock EdgeTAM does. The mask is computed from the
-bank inside the graph, so the propagator stays on the Neural Engine (641 operations): 37.7 ms against the default's
-36.1 ms, measured interleaved on the same M4.
+bank, and the masked attention is written out as softmax(QKᵀ/√d + bias)·V instead of SDPA's `attn_mask`. The
+Neural Engine keeps it, so the propagator stays there (641 operations): 37.7 ms against the default's 36.1 ms,
+measured interleaved on the same M4. Releases from v1.2 ship it as a separate asset.
 
 ## Compared with the community conversion
 
