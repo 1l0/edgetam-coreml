@@ -1,9 +1,10 @@
 """Tracks one object through a video from a click with the four packages, on macOS (coremltools, no PyTorch).
 
     python examples/track.py --models <packages folder> --video <folder of JPEGs | video file> --point X,Y \
-        [--negative X,Y ...] [--out masks] [--units ane|gpu|all|cpu]
+        [--point X,Y ...] [--negative X,Y ...] [--out masks] [--units ane|gpu|all|cpu]
 
-X, Y are pixels of the first frame. Writes masks/00000.png… (the object in white, at the video's size) and an overlay
+X, Y are pixels of the first frame; --point and --negative repeat. One point picks the best of three nested masks,
+several points give one mask. Writes masks/00000.png… (the object in white, at the video's size) and an overlay
 JPEG per frame. A video file needs ffmpeg. This is the whole tracking loop, in the order the packages expect:
 
 1. Every frame: the image encoder on the frame resized to 1024².
@@ -47,7 +48,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--models", required=True)
     parser.add_argument("--video", required=True)
-    parser.add_argument("--point", required=True, help="X,Y of the object on the first frame")
+    parser.add_argument("--point", action="append", required=True, help="X,Y of the object on the first frame")
     parser.add_argument("--negative", action="append", default=[], help="X,Y of something that is not the object")
     parser.add_argument("--out", default="masks")
     parser.add_argument("--units", default="ane", choices=["ane", "gpu", "all", "cpu"])
@@ -57,15 +58,17 @@ def main():
 
     unit = {"ane": ct.ComputeUnit.CPU_AND_NE, "gpu": ct.ComputeUnit.CPU_AND_GPU, "all": ct.ComputeUnit.ALL,
             "cpu": ct.ComputeUnit.CPU_ONLY}[args.units]
+    # The initializer is fp32, which the Neural Engine does not run: with --units ane it goes to the GPU.
+    units = [unit, ct.ComputeUnit.ALL if args.units == "ane" else unit, unit, unit]
     encoder, initializer, memory_encoder, propagator = (
-        ct.models.MLModel(os.path.join(args.models, n + ".mlpackage"), compute_units=unit) for n in NAMES)
+        ct.models.MLModel(os.path.join(args.models, n + ".mlpackage"), compute_units=u) for n, u in zip(NAMES, units))
     os.makedirs(args.out, exist_ok=True)
 
     seed, recent, temporal = None, [], None
     for i, frame in enumerate(frames(args.video)):
         features = encoder.predict({"image": frame.resize((1024, 1024), Image.BILINEAR)})
         if i == 0:
-            prompts = [point(args.point, frame.size, 1)] + [point(p, frame.size, 0) for p in args.negative]
+            prompts = [point(p, frame.size, 1) for p in args.point] + [point(p, frame.size, 0) for p in args.negative]
             out = initializer.predict({
                 "initial_vision_features": features["initial_vision_features"],
                 "high_res_feature_0": features["high_res_feature_0"],

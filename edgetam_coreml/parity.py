@@ -15,7 +15,8 @@ seed mask:
 Reported per sequence: mask IoU per frame (logits > 0 at 1024²), the cosine of the image features, memory features
 and object pointers with PyTorch's, and the object scores. The gap sequence replaces frames with black ones in the
 middle, so the object leaves and comes back (no-object masking, no-object pointer, recovery). On the seed frame the
-click paths are checked too: one positive click (best of three) and every point of the sequence (positive and negative).
+click paths are checked too: one positive click (best of three), every point of the sequence (positive and negative),
+and every point with the first click's mask (points added to a frame that has a mask).
 
 The packages attend the memory bank's empty slots unless built with `convert --mask-empty-slots`; PyTorch has no
 empty slots (it concatenates only the memories it has). `--attend-empty-slots` pads PyTorch's bank the packages' way
@@ -223,25 +224,38 @@ def clicks(predictor, cm, enc, torch_enc, points, allow_ambiguous=False):
     positive = [p for p in points if p[2] == 1][:1]
     features = torch.tensor(torch_enc["initial_vision_features"])
     high_res = [torch.tensor(torch_enc["high_res_feature_0"]), torch.tensor(torch_enc["high_res_feature_1"])]
-    for label, chosen in (("one click", positive), ("all points", points)):
+    mask = None
+    for label, chosen, with_mask in (("one click", positive, False), ("all points", points, False),
+                                     ("points and mask", points, True)):
         if not chosen:
             continue
         coords = np.array([[[p[0], p[1]] for p in chosen]], np.float32)
         labels = np.array([[p[2] for p in chosen]], np.int32)
         prompt = {"point_coords": torch.tensor(coords), "point_labels": torch.tensor(labels)}
-        multi = predictor._forward_sam_heads(features, point_inputs=prompt, high_res_features=high_res,
-                                             multimask_output=True)
-        ref = predictor._forward_sam_heads(features, point_inputs=prompt, high_res_features=high_res,
+        given = {}
+        mask_inputs = None
+        if with_mask:
+            # Points added to a frame that already has a mask: the video predictor passes that mask's 256² logits.
+            given = {"mask_input": mask[None, None]}
+            mask_inputs = F.interpolate(torch.tensor(mask[None, None] * 20 - 10), size=(256, 256), mode="bilinear",
+                                        align_corners=False, antialias=True)
+        multi = predictor._forward_sam_heads(features, point_inputs=prompt, mask_inputs=mask_inputs,
+                                             high_res_features=high_res, multimask_output=True)
+        ref = predictor._forward_sam_heads(features, point_inputs=prompt, mask_inputs=mask_inputs,
+                                           high_res_features=high_res,
                                            multimask_output=predictor._use_multimask(True, prompt))
+        if mask is None:
+            # The mask for "points and mask": PyTorch's mask for the first case.
+            mask = (ref[4][0, 0].numpy() > 0).astype(np.float32)
         out = cm.run(NAMES[1], {
             "initial_vision_features": enc["initial_vision_features"],
             "high_res_feature_0": enc["high_res_feature_0"], "high_res_feature_1": enc["high_res_feature_1"],
-            "point_coords": coords, "point_labels": labels})
+            "point_coords": coords, "point_labels": labels, **given})
         same = cm.run(NAMES[1], {
             "initial_vision_features": torch_enc["initial_vision_features"],
             "high_res_feature_0": torch_enc["high_res_feature_0"],
             "high_res_feature_1": torch_enc["high_res_feature_1"],
-            "point_coords": coords, "point_labels": labels})
+            "point_coords": coords, "point_labels": labels, **given})
         same_candidates = [iou(same["candidate_masks"][0, k] > 0, multi[0][0, k].numpy() > 0) for k in range(3)]
         ref_ious = np.sort(ref[2].numpy().ravel())[::-1]
         tie = len(ref_ious) > 1 and ref_ious[0] - ref_ious[1] < 0.02

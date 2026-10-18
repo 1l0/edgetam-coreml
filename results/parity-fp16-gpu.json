@@ -48,6 +48,22 @@
       35.05
      ],
      "pass": true
+    },
+    {
+     "case": "points and mask",
+     "points": 2,
+     "candidate_iou_min": 0.9991,
+     "candidate_iou_min_own_features": 0.9937,
+     "candidate_iou_diff_max": 0.0041,
+     "chosen_iou": 0.9998,
+     "chosen_pointer_cosine": 1.0,
+     "ambiguous": false,
+     "chosen_index": null,
+     "score": [
+      26.88,
+      26.85
+     ],
+     "pass": true
     }
    ],
    "iou_by_frame": [
@@ -92,8 +108,8 @@
     0.9998,
     0.9996
    ],
-   "torch_s": 19.3,
-   "coreml_s": 5.1,
+   "torch_s": 19.6,
+   "coreml_s": 7.1,
    "pass": true
   },
   {
@@ -144,6 +160,22 @@
       37.84
      ],
      "pass": true
+    },
+    {
+     "case": "points and mask",
+     "points": 2,
+     "candidate_iou_min": 1.0,
+     "candidate_iou_min_own_features": 0.9974,
+     "candidate_iou_diff_max": 0.0053,
+     "chosen_iou": 0.9989,
+     "chosen_pointer_cosine": 1.0,
+     "ambiguous": false,
+     "chosen_index": null,
+     "score": [
+      28.72,
+      28.66
+     ],
+     "pass": true
     }
    ],
    "iou_by_frame": [
@@ -188,8 +220,8 @@
     0.9997,
     0.9988
    ],
-   "torch_s": 19.8,
-   "coreml_s": 4.2,
+   "torch_s": 24.9,
+   "coreml_s": 7.2,
    "pass": true
   },
   {
@@ -243,6 +275,25 @@
       30.71
      ],
      "pass": true
+    },
+    {
+     "case": "points and mask",
+     "points": 1,
+     "candidate_iou_min": 1.0,
+     "candidate_iou_min_own_features": 0.9964,
+     "candidate_iou_diff_max": 0.0006,
+     "chosen_iou": 0.9997,
+     "chosen_pointer_cosine": 1.0,
+     "ambiguous": true,
+     "chosen_index": [
+      1,
+      1
+     ],
+     "score": [
+      25.56,
+      25.54
+     ],
+     "pass": true
     }
    ],
    "iou_by_frame": [
@@ -287,8 +338,8 @@
     0.9998,
     0.9997
    ],
-   "torch_s": 25.0,
-   "coreml_s": 5.1,
+   "torch_s": 20.1,
+   "coreml_s": 5.9,
    "pass": true
   },
   {
@@ -342,6 +393,25 @@
       33.32
      ],
      "pass": true
+    },
+    {
+     "case": "points and mask",
+     "points": 1,
+     "candidate_iou_min": 0.9911,
+     "candidate_iou_min_own_features": 0.9825,
+     "candidate_iou_diff_max": 0.0058,
+     "chosen_iou": 0.9998,
+     "chosen_pointer_cosine": 1.0,
+     "ambiguous": false,
+     "chosen_index": [
+      1,
+      1
+     ],
+     "score": [
+      27.41,
+      27.36
+     ],
+     "pass": true
     }
    ],
    "iou_by_frame": [
@@ -386,8 +456,8 @@
     0.9945,
     0.9979
    ],
-   "torch_s": 29.8,
-   "coreml_s": 5.6,
+   "torch_s": 20.6,
+   "coreml_s": 6.3,
    "pass": false
   },
   {
@@ -459,6 +529,22 @@
       35.05
      ],
      "pass": true
+    },
+    {
+     "case": "points and mask",
+     "points": 2,
+     "candidate_iou_min": 0.9991,
+     "candidate_iou_min_own_features": 0.9937,
+     "candidate_iou_diff_max": 0.0041,
+     "chosen_iou": 0.9998,
+     "chosen_pointer_cosine": 1.0,
+     "ambiguous": false,
+     "chosen_index": null,
+     "score": [
+      26.88,
+      26.85
+     ],
+     "pass": true
     }
    ],
    "iou_by_frame": [
@@ -503,30 +589,30 @@
     0.9779,
     0.997
    ],
-   "torch_s": 18.8,
-   "coreml_s": 5.3,
+   "torch_s": 29.3,
+   "coreml_s": 5.1,
    "pass": false
   }
  ],
  "timing": {
   "EdgeTAMVideoImageEncoder": {
    "load_s": 0.21,
-   "mean_ms": 38.3,
+   "mean_ms": 47.3,
    "calls": 200
   },
   "EdgeTAMVideoInitializer": {
-   "load_s": 0.26,
-   "mean_ms": 93.5,
-   "calls": 25
+   "load_s": 0.28,
+   "mean_ms": 87.8,
+   "calls": 35
   },
   "EdgeTAMVideoMemoryEncoder": {
-   "load_s": 0.11,
-   "mean_ms": 38.7,
+   "load_s": 0.1,
+   "mean_ms": 36.3,
    "calls": 5
   },
   "EdgeTAMVideoPropagator": {
-   "load_s": 0.3,
-   "mean_ms": 80.9,
+   "load_s": 0.31,
+   "mean_ms": 100.1,
    "calls": 195
   }
  },

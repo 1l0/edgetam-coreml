@@ -15,8 +15,9 @@ code written for it runs these; what is new is added:
   (1 positive, 0 negative, -1 none), N from 1 to 16, and `mask_input` [1, 1, 1024, 1024] (0/1; optional, zeros by
   default). With a mask and no labelled point it is SAM 2's mask prompt (`_use_mask_as_output`): the mask itself is
   the output (±10 logits) and the object pointer comes from the decoder prompted with the downsampled mask. With
-  points, SAM 2's click path (`_forward_sam_heads`): one point (and no mask) picks the best of three masks by
-  predicted IoU; more points, or points with a mask, take the single-mask output with the stability fallback.
+  points, SAM 2's click path (`_forward_sam_heads`): one point picks the best of three masks by predicted IoU, more
+  points take the single-mask output with the stability fallback; a mask given with points is the dense prompt, as
+  the mask already on a frame is when points are added to it. Labels 2 and 3 are a box's corners.
   Outputs `low_res_mask` [1, 1, 256, 256] and `high_res_mask` [1, 1, 1024, 1024] logits, `best_iou` [1],
   `object_pointer` [1, 256], `object_score` [1, 1] logit, and the three candidates: `candidate_masks`
   [1, 3, 256, 256], `candidate_ious` [1, 3], `candidate_pointers` [1, 3, 256].
@@ -47,7 +48,7 @@ import torch.nn.functional as F
 from . import upstream
 
 NO_OBJ_SCORE = -1024.0
-VERSION = "1.0"
+VERSION = "1.1"
 # Packages computed in fp32 by default (--fp32).
 FP32 = "initializer"
 NAMES = {
@@ -214,18 +215,25 @@ class Initializer(torch.nn.Module):
         as_output = has_mask & (clicks == 0)
         # The mask prompt decodes on the raw features, a click on the features with the no-memory embedding.
         features = initial_vision_features - as_output.float() * model.no_mem_embed.reshape(1, -1, 1, 1)
+        # The mask as ±10 logits, as `_use_mask_as_output` makes them.
+        given = mask_input * 20 - 10
+        # The dense prompt. A mask alone: the learned `mask_downsample` (the pointer of `_use_mask_as_output`).
+        # Points with a mask: the mask's 256² logits, antialiased, as the video predictor passes a frame's previous
+        # mask with new points (`prev_sam_mask_logits` into `_forward_sam_heads`).
+        downscale = model.sam_prompt_encoder.mask_downscaling
         dense = pick(
-            has_mask, model.sam_prompt_encoder.mask_downscaling(model.mask_downsample(mask_input)),
+            has_mask, pick(as_output, downscale(model.mask_downsample(mask_input)), downscale(self.downsample(given))),
             self.heads.no_mask.expand(1, -1, 64, 64))
         sparse = self.heads.embed_points(point_coords, labels)
         masks, ious, tokens, score = self.heads.decode(
             features, sparse, dense, [high_res_feature_0, high_res_feature_1])
-        multimask = (clicks <= 1) & ~has_mask
+        # `_use_multimask`: one point or none picks the best of three, with or without a mask; a mask alone takes
+        # the single mask (`_use_mask_as_output` decodes its pointer with multimask_output=False).
+        multimask = (clicks <= 1) & ~as_output
         low, iou, pointer, candidates, candidate_ious, candidate_pointers = self.heads.outputs(
             masks, ious, tokens, score, multimask)
         high = upsample(low)
-        # The mask prompt: the mask as ±10 logits, IoU 1, object score 10.
-        given = mask_input * 20 - 10
+        # The mask prompt: the mask as logits, IoU 1, object score 10.
         low = pick(as_output, self.downsample(given), low)
         high = pick(as_output, given, high)
         iou = pick(as_output, torch.ones_like(iou), iou)

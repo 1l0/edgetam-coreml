@@ -3,7 +3,8 @@
     python -m edgetam_coreml.speed <packages> [--units ane|gpu|all|cpu] [--runs 30] [--label name] [--json results/speed.jsonl]
 
 The load (with the first Neural Engine compile) is timed separately. Run it on an idle machine: another process on
-the Neural Engine or GPU shows up directly in the numbers.
+the Neural Engine or GPU shows up directly in the numbers. Each package also reports where Core ML's compute plan
+puts its operations (`ops`: count per device, constants left out).
 """
 
 import argparse
@@ -37,6 +38,29 @@ def inputs(name):
             "spatial_positions": h(1, 7, 512, 64), "pointer_bank": h(1, 16, 256), "attention_bias": bias}
 
 
+def devices(path, unit):
+    """Operations per compute device in Core ML's plan for the package on `unit`, constants left out."""
+    import coremltools as ct
+    from coremltools.models.compute_device import MLCPUComputeDevice, MLGPUComputeDevice, MLNeuralEngineComputeDevice
+    from coremltools.models.compute_plan import MLComputePlan
+
+    kinds = {MLCPUComputeDevice: "cpu", MLGPUComputeDevice: "gpu", MLNeuralEngineComputeDevice: "ane"}
+    plan = MLComputePlan.load_from_path(ct.models.utils.compile_model(path), compute_units=unit)
+    counts = {}
+
+    def walk(operations):
+        for op in operations:
+            usage = plan.get_compute_device_usage_for_mlprogram_operation(op)
+            if usage is not None:
+                kind = kinds.get(type(usage.preferred_compute_device), "other")
+                counts[kind] = counts.get(kind, 0) + 1
+            for block in op.blocks:
+                walk(block.operations)
+
+    walk(plan.model_structure.program.functions["main"].block.operations)
+    return counts
+
+
 def main():
     import coremltools as ct
 
@@ -66,7 +90,8 @@ def main():
                    os.walk(os.path.join(args.models, name + ".mlpackage")) for f in fs)
         row[name] = {"median_ms": round(1000 * float(np.median(times)), 2),
                      "p95_ms": round(1000 * float(np.percentile(times, 95)), 2), "min_ms": round(1000 * min(times), 2),
-                     "load_s": round(load, 2), "mb": round(size / 1e6, 1)}
+                     "load_s": round(load, 2), "mb": round(size / 1e6, 1),
+                     "ops": devices(os.path.join(args.models, name + ".mlpackage"), unit)}
     row["frame_ms"] = round(row[NAMES[0]]["median_ms"] + row[NAMES[3]]["median_ms"], 2)
     row["chip"] = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True,
                                  text=True).stdout.strip() or platform.machine()

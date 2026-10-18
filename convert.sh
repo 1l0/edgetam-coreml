@@ -9,18 +9,17 @@
 # bedroom video and exits non-zero if it falls short, and reports how the fp16 packages compare.
 set -euo pipefail
 
-# Refuse to start with under 2 GB free: conversions and mask outputs fill a tight disk fast.
-free_kb=$(df -k / | awk 'NR == 2 {print $4}')
-((free_kb > 2 * 1024 * 1024)) || { print -u2 "under 2 GB free on /; clean up first"; exit 75; }
-
 work=${1:?usage: convert.sh <work folder> [--no-parity]}
+mkdir -p "$work"
+# Refuse to start with under 2 GB free where the work goes: conversions and mask outputs fill a tight disk fast.
+free_kb=$(df -k "$work" | awk 'NR == 2 {print $4}')
+((free_kb > 2 * 1024 * 1024)) || { print -u2 "under 2 GB free for $work; clean up first"; exit 75; }
 here=${0:A:h}
 commit=$(sed -n 's/^COMMIT = "\(.*\)"/\1/p' "$here/edgetam_coreml/upstream.py")
 sha=$(sed -n 's/^CHECKPOINT_SHA256 = "\(.*\)"/\1/p' "$here/edgetam_coreml/upstream.py")
 # The package from this checkout; -P keeps the current folder off sys.path.
 py=(env PYTHONPATH="$here" venv/bin/python -P -m)
 cap() { perl -e 'alarm shift; exec @ARGV' "$@"; }
-mkdir -p "$work"
 cd "$work"
 
 if [[ ! -d EdgeTAM ]]; then
