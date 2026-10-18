@@ -29,6 +29,11 @@ Prebuilt packages are on the [Releases](../../releases/latest) page: unzip them 
 (`examples/track.py` needs only `coremltools`, `numpy` and `Pillow`). To build them yourself, you need macOS on Apple
 silicon, [uv](https://github.com/astral-sh/uv) and git. ffmpeg is needed only to read video files.
 
+Releases from v1.2 also carry `edgetam-coreml-<version>-masked-propagator.zip`: an `EdgeTAMVideoPropagator` built
+with `--mask-empty-slots`, a drop-in replacement that tracks like stock EdgeTAM for about 1.6 ms more a frame (see
+[Neural Engine and attention masks](#neural-engine-and-attention-masks)). It treats an all-zero slot as empty, so
+leave unused slots as zeros.
+
 ```bash
 ./convert.sh ~/work/edgetam
 ```

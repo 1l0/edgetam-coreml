@@ -47,7 +47,7 @@ import torch.nn.functional as F
 from . import upstream
 
 NO_OBJ_SCORE = -1024.0
-VERSION = "1.1"
+VERSION = "1.2"
 # Packages computed in fp32 by default (--fp32).
 FP32 = "initializer"
 NAMES = {
@@ -449,8 +449,10 @@ def convert(key, model, out, fp32=False, weights=None, options=None):
     mlmodel.author = "Meta EdgeTAM (Apache-2.0), converted to Core ML by edgetam-coreml"
     mlmodel.license = "Apache-2.0"
     precision = "fp32" if fp32 else "fp16"
+    masked = key == "propagator" and (options or {}).get("mask_empty_slots")
     mlmodel.short_description = (f"EdgeTAM video tracker: {key} (upstream {upstream.COMMIT[:12]}, {precision}"
-                                 + (f", weights {weights}" if weights else "") + ")")
+                                 + (f", weights {weights}" if weights else "")
+                                 + (", empty slots masked" if masked else "") + ")")
     mlmodel.version = VERSION
     path = os.path.join(out, NAMES[key] + ".mlpackage")
     mlmodel.save(path)
