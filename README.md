@@ -181,7 +181,8 @@ These packages make that behavior explicit:
 against it, and the "stock" rows show what attending the slots costs.
 
 `convert --mask-empty-slots` masks the empty (all-zero) slots as stock EdgeTAM does. The mask is computed from the
-bank inside the graph, so the propagator stays on the Neural Engine at about 1 ms more than the default.
+bank inside the graph, so the propagator stays on the Neural Engine (641 operations): 37.7 ms against the default's
+36.1 ms, measured interleaved on the same M4.
 
 ## Compared with the community conversion
 
