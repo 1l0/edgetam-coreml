@@ -60,6 +60,22 @@ ffmpeg -t 22 -i surf.ogv -vf fps=15,crop=960:540:640:270 -q:v 2 frames/%05d.jpg
 ~/work/edgetam/venv/bin/python examples/track.py --models ~/work/edgetam/out --video frames --point 632,345
 ```
 
+### GUI
+
+[`ui/`](ui/) is a local web UI over the same loop: choose the work folder, run the `convert.sh` initialization, open a
+video, click points on the first frame, and export while a progress bar follows the frames. It runs `convert.sh` and
+`examples/track.py` itself, so its output is identical to the commands above.
+
+```bash
+cd ui
+npm install
+npm run dev        # http://localhost:5173
+```
+
+For a fixed local app instead of the dev server: `npm run build && npm start` (http://127.0.0.1:8765). It needs
+macOS, Node 22.12+, `ffmpeg` on `PATH`, and the same work folder `convert.sh` produces. Settings, including the work
+folder and the export folder, are kept in `.local/ui-settings.json`; the server listens on `127.0.0.1` only.
+
 ## The packages
 
 | Package | Runs | Size | Runs on | Median |
@@ -239,6 +255,7 @@ edgetam_coreml/
   speed.py               latency per package and compute unit
   upstream.py            the pinned EdgeTAM commit and checkpoint, and the predictor builder
 examples/track.py        tracking from a click with coremltools alone
+ui/                     the local Solid + Vite GUI (see ui/README.md)
 results/                 parity reports and speed
 docs/                    the demo animation
 ```
