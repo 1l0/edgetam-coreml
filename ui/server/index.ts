@@ -164,6 +164,9 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       const body = await readJson(req);
       const points = normalizePoints(body.points);
       const meta = probeVideo(current.videoPath);
+      if (meta.frames !== null && current.startFrame >= meta.frames) {
+        return fail(res, 400, `Start frame ${current.startFrame} is outside the video (0–${meta.frames - 1})`);
+      }
       if (points.some((point) => point.x < 0 || point.y < 0 || point.x > meta.width || point.y > meta.height)) {
         return fail(res, 400, "A point is outside the video frame");
       }

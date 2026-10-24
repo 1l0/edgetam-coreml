@@ -304,6 +304,21 @@ kbd {
   stroke: #fff;
 }
 
+.stage-frame {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: #d9fff8;
+  background: rgba(6, 20, 18, 0.72);
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
 .stage-hint {
   position: absolute;
   left: 50%;
@@ -540,6 +555,7 @@ kbd {
 }
 
 input[type="text"],
+input[type="number"],
 .path-field input,
 select {
   height: 32px;
@@ -700,9 +716,21 @@ select {
   gap: 10px;
 }
 
-.field-row label {
+.field-row label,
+.field-label {
   font-size: 12px;
   color: var(--muted);
+}
+
+.frame-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.frame-pick input {
+  width: 78px;
+  text-align: right;
 }
 
 .field-row select {

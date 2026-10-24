@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import type { PromptPoint, VideoMeta } from "../types.ts";
 import { Icon } from "./parts.tsx";
 
@@ -8,8 +8,11 @@ interface StageProps {
   streamUrl: string;
   posterUrl: string;
   points: PromptPoint[];
+  /** 0-based frame the points belong to; the player parks there when points are added. */
+  promptFrame: number;
   locked: boolean;
   onAdd: (x: number, y: number) => void;
+  onTime: (seconds: number) => void;
   onRemove: (index: number) => void;
 }
 
@@ -20,7 +23,7 @@ function formatTime(seconds: number): string {
   return `${minutes}:${rest.toFixed(2).padStart(5, "0")}`;
 }
 
-/** The video preview and the prompt editor: points live in first-frame pixel coordinates. */
+/** The video preview and the prompt editor: points live in the prompt frame's pixel coordinates. */
 export function Stage(props: StageProps): JSX.Element {
   let video: HTMLVideoElement | undefined;
   const [playing, setPlaying] = createSignal(false);
@@ -30,6 +33,8 @@ export function Stage(props: StageProps): JSX.Element {
   const radius = () => Math.max(7, props.meta.width * 0.0105);
   const aspect = () => props.meta.width / props.meta.height;
   const played = () => (props.meta.duration > 0 ? Math.min(100, (time() / props.meta.duration) * 100) : 0);
+  const fps = () => props.meta.fps || 30;
+  const promptTime = () => props.promptFrame / fps();
 
   const seek = (seconds: number) => {
     if (!video) return;
@@ -51,10 +56,19 @@ export function Stage(props: StageProps): JSX.Element {
     const y = ((event.clientY - rect.top) / rect.height) * props.meta.height;
     if (x < 0 || y < 0 || x > props.meta.width || y > props.meta.height) return;
     props.onAdd(Math.round(x), Math.round(y));
-    // Points describe frame 0, so show the frame they describe.
+    // Points describe the prompt frame, so show the frame they describe.
     video?.pause();
-    seek(0);
+    seek(promptTime());
   };
+
+  // Follow the prompt frame when it is changed elsewhere (the number field or Use playhead). The time and the
+  // tolerance are computed in the tracked phase; the effect itself only touches the player.
+  createEffect(
+    () => ({ seconds: promptTime(), step: 0.5 / fps() }),
+    ({ seconds, step }) => {
+      if (video && Math.abs(video.currentTime - seconds) > step) seek(seconds);
+    },
+  );
 
   return (
     <div class="stage">
@@ -69,7 +83,11 @@ export function Stage(props: StageProps): JSX.Element {
           poster={props.posterUrl}
           preload="metadata"
           playsinline
-          onTimeUpdate={(event) => setTime(event.currentTarget.currentTime)}
+          onLoadedMetadata={() => seek(promptTime())}
+          onTimeUpdate={(event) => {
+            setTime(event.currentTarget.currentTime);
+            props.onTime(event.currentTarget.currentTime);
+          }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
@@ -99,6 +117,7 @@ export function Stage(props: StageProps): JSX.Element {
             )}
           </For>
         </svg>
+        <div class="stage-frame mono">Start frame {props.promptFrame}</div>
         <Show when={props.points.length === 0 && !props.locked}>
           <div class="stage-hint">Click the object to add a point</div>
         </Show>
@@ -114,7 +133,7 @@ export function Stage(props: StageProps): JSX.Element {
         <button class="btn icon" type="button" onClick={toggle} title={playing() ? "Pause" : "Play"} aria-label={playing() ? "Pause" : "Play"}>
           <Icon name={playing() ? "pause" : "play"} size={18} />
         </button>
-        <button class="btn icon" type="button" onClick={() => seek(0)} title="Jump to the first frame" aria-label="Jump to the first frame">
+        <button class="btn icon" type="button" onClick={() => seek(promptTime())} title="Jump to the start frame" aria-label="Jump to the start frame">
           <Icon name="rewind" size={16} />
         </button>
         <span class="time mono">

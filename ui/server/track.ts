@@ -93,8 +93,14 @@ export function startTracking(job: Job, context: TrackContext): void {
 
       const frameCount = readdirSync(framesDir).filter((name) => name.endsWith(".jpg")).length;
       if (frameCount === 0) throw new Error("Could not extract frames from the video");
-      job.setFrames(0, frameCount);
-      job.append(`Extracted ${frameCount} frames`);
+      const start = Math.min(Math.max(settings.startFrame, 0), frameCount - 1);
+      // Each direction writes the start frame once; "both" covers every frame exactly once.
+      const expected =
+        settings.direction === "forward" ? frameCount - start
+          : settings.direction === "backward" ? start + 1
+            : frameCount;
+      job.setFrames(0, expected);
+      job.append(`Extracted ${frameCount} frames; ${settings.direction} from frame ${start}`);
 
       const args = [
         path.join(repoRoot, "examples", "track.py"),
@@ -102,6 +108,8 @@ export function startTracking(job: Job, context: TrackContext): void {
         "--video", framesDir,
         "--out", settings.outDir,
         "--units", settings.units,
+        "--start", String(start),
+        "--direction", settings.direction,
       ];
       for (const point of points.filter((point) => point.label === 1)) {
         args.push("--point", `${Math.round(point.x)},${Math.round(point.y)}`);
@@ -113,18 +121,19 @@ export function startTracking(job: Job, context: TrackContext): void {
       job.setPhase("track", "Loading models");
       job.setProgress(0.1);
       let started = false;
+      let done = 0;
       const track = startChild(job, env.python, args, {
         cwd: repoRoot,
         onLine: (line) => {
-          const match = /^frame (\d+):/.exec(line);
-          if (!match) return;
+          // One line per written frame, whatever index it has; the count is what drives the bar.
+          if (!/^frame \d+:/.test(line)) return;
           if (!started) {
             started = true;
             job.label = "Tracking the object";
           }
-          const done = Number(match[1]) + 1;
-          job.setFrames(done, frameCount);
-          job.setProgress(0.1 + 0.9 * Math.min(1, done / frameCount));
+          done += 1;
+          job.setFrames(done, expected);
+          job.setProgress(0.1 + 0.9 * Math.min(1, done / expected));
         },
       });
       const tracked = await track.done;
@@ -132,8 +141,8 @@ export function startTracking(job: Job, context: TrackContext): void {
       if (tracked.error) throw new Error(`Could not start Python: ${tracked.error.message}`);
       if (tracked.code !== 0) throw new Error(`track.py failed (exit ${tracked.code ?? tracked.signal})`);
 
-      job.setFrames(frameCount, frameCount);
-      job.finish("done", null, `Wrote ${frameCount} frames`);
+      job.setFrames(expected, expected);
+      job.finish("done", null, `Wrote ${expected} frames (${settings.direction} from frame ${start})`);
       job.append(`Export finished: ${settings.outDir}`);
       if (settings.openOnFinish) spawnDetached("open", [settings.outDir]);
     } catch (error) {

@@ -26,13 +26,20 @@ Requirements: macOS, Node 22.12+, `ffmpeg`/`ffprobe` on `PATH`, and the work fol
 | UI | Command |
 |---|---|
 | Initialize | `./convert.sh <work>` (plus `--no-parity` when the parity check is off) |
-| Track and export | `examples/track.py --models <work>/out --video <video> --point/--negative … --out <out> --units <unit>` |
+| Track and export | `examples/track.py --models <work>/out --video <video> --start <frame> --direction <dir> --point/--negative … --out <out> --units <unit>` |
 | Open folder | `open <out>` (also on completion, unless "Open the folder when done" is off) |
 | Browse | `osascript` `choose folder` / `choose file` |
 
-Points are first-frame pixel coordinates, so clicking the preview always seeks back to frame 0. Click a marker to
-delete it, or press `Backspace` to remove the last one. Background points become `--negative`. The initializer accepts
-**1–16 points in total** (object + background), so the editor stops at 16 and says why.
+Points are pixel coordinates on the **start frame**. Scrub the player, press **Use playhead** (or type a frame
+number) to move the prompt frame; the preview parks there, clicking the stage adds a point, and changing the frame
+clears the points because they describe the old one. Frame numbers are 0-based, matching the mask filenames.
+
+Click a marker to delete it, or press `Backspace` to remove the last one. Background points become `--negative`. The
+initializer accepts **1–16 points in total** (object + background), so the editor stops at 16 and says why.
+
+**Direction** chooses what gets exported from the start frame: `Forward` to the last frame, `Backward` down to frame 0,
+or `Both` (two passes from the same seed, each with its own memory bank, as SAM 2 does). The line under the control
+shows the frames that will be written.
 
 ## How it works
 
@@ -62,7 +69,7 @@ scripts/dev.ts              runs Vite and the API together
 
 ## Notes and limits
 
-- Points are not saved between page loads; a new video clears them.
+- Points are not saved between page loads; a new video or start frame clears them.
 - Existing masks in the export folder are overwritten by index; extra frames from a longer earlier run stay. The job
   log says so when it finds them.
 - The first tracked frame waits for Python and Core ML to load the four packages (tens of seconds); the progress label

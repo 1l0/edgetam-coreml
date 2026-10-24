@@ -8,6 +8,11 @@ export function PointsPanel(props: {
   points: PromptPoint[];
   mode: 1 | 0;
   disabled: boolean;
+  /** 0-based frame the points are placed on. */
+  startFrame: number;
+  maxFrame: number;
+  onStartFrame: (frame: number) => void;
+  onUsePlayhead: () => void;
   onMode: (mode: 1 | 0) => void;
   onFlip: (index: number) => void;
   onRemove: (index: number) => void;
@@ -25,6 +30,32 @@ export function PointsPanel(props: {
         </span>
       }
     >
+      <div class="field-row">
+        <label for="start-frame">Start frame</label>
+        <div class="frame-pick">
+          <input
+            id="start-frame"
+            class="mono"
+            type="number"
+            min="0"
+            max={props.maxFrame}
+            value={props.startFrame}
+            disabled={props.disabled}
+            onChange={(event) => props.onStartFrame(Number(event.currentTarget.value))}
+          />
+          <button
+            class="btn ghost small"
+            type="button"
+            disabled={props.disabled}
+            onClick={props.onUsePlayhead}
+            title="Use the frame the player is parked on"
+          >
+            <Icon name="target" size={13} />
+            Use playhead
+          </button>
+        </div>
+      </div>
+
       <div class="segmented" role="group" aria-label="Type of point to add">
         <button
           type="button"
@@ -47,6 +78,7 @@ export function PointsPanel(props: {
       </div>
 
       <p class="hint">
+        Points are placed on the start frame (0-based, matching the mask filenames). Changing it clears them.
         Click the frame to add a point; click a marker to remove it. <kbd>⌫</kbd> removes the last one.
         Object and background share a limit of {MAX_PROMPT_POINTS} points.
       </p>

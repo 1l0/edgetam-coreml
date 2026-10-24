@@ -1,14 +1,20 @@
 import type { JSX } from "@solidjs/web";
 import { For, Show } from "solid-js";
-import type { EnvironmentInfo, JobSnapshot, PromptPoint, Settings, Units, VideoMeta } from "../types.ts";
+import type { Direction, EnvironmentInfo, JobSnapshot, PromptPoint, Settings, Units, VideoMeta } from "../types.ts";
 import { JobStatus } from "./JobStatus.tsx";
 import { Icon, LogPanel, PathField, Section, Switch } from "./parts.tsx";
 
 const UNIT_LABELS: Record<Units, string> = {
-  ane: "ANE（Neural Engine）",
+  ane: "ANE (Neural Engine)",
   gpu: "GPU",
   all: "All",
   cpu: "CPU only",
+};
+
+const DIRECTION_LABELS: Record<Direction, string> = {
+  forward: "Forward",
+  backward: "Backward",
+  both: "Both",
 };
 
 export function ExportPanel(props: {
@@ -22,6 +28,7 @@ export function ExportPanel(props: {
   onPickOutDir: () => void;
   onOutDir: (value: string) => void;
   onUnits: (value: Units) => void;
+  onDirection: (value: Direction) => void;
   onOpenOnFinish: (value: boolean) => void;
   onExport: () => void;
   onCancel: () => void;
@@ -42,6 +49,24 @@ export function ExportPanel(props: {
   };
 
   const ready = () => blockers().length === 0 && !anyRunning();
+
+  const lastFrame = () => Math.max(0, (props.meta?.frames ?? 1) - 1);
+  const startFrame = () => Math.min(props.settings.startFrame, lastFrame());
+  const written = () =>
+    props.settings.direction === "forward" ? Math.max(0, lastFrame() + 1 - startFrame())
+      : props.settings.direction === "backward" ? startFrame() + 1
+        : lastFrame() + 1;
+
+  const summary = () => {
+    if (!props.meta) return "Open a video to see the range.";
+    if (props.settings.direction === "both") {
+      return `Frames 0–${lastFrame()}, both ways from ${startFrame()} · ≈${written()} frames`;
+    }
+    if (props.settings.direction === "forward") {
+      return `Frames ${startFrame()}–${lastFrame()}, forward from ${startFrame()} · ≈${written()} frames`;
+    }
+    return `Frames 0–${startFrame()}, backward from ${startFrame()} · ≈${written()} frames`;
+  };
 
   return (
     <Section
@@ -74,6 +99,25 @@ export function ExportPanel(props: {
           </For>
         </select>
       </div>
+
+      <div class="field-row">
+        <span class="field-label">Direction</span>
+        <div class="segmented" role="group" aria-label="Tracking direction">
+          <For each={Object.keys(DIRECTION_LABELS) as Direction[]}>
+            {(direction) => (
+              <button
+                type="button"
+                class={{ active: props.settings.direction === direction }}
+                disabled={trackRunning()}
+                onClick={() => props.onDirection(direction)}
+              >
+                {DIRECTION_LABELS[direction]}
+              </button>
+            )}
+          </For>
+        </div>
+      </div>
+      <p class="hint mono">{summary()}</p>
 
       <Switch
         checked={props.settings.openOnFinish}

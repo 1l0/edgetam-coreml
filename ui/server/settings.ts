@@ -6,6 +6,9 @@ import { isDirectory, normalizePath, expandHome } from "./util.ts";
 export const UNITS = ["ane", "gpu", "all", "cpu"] as const;
 export type Units = (typeof UNITS)[number];
 
+export const DIRECTIONS = ["forward", "backward", "both"] as const;
+export type Direction = (typeof DIRECTIONS)[number];
+
 export interface Settings {
   /** The folder passed to `convert.sh`; its `out/` and `venv/` are what tracking uses. */
   workDir: string;
@@ -15,6 +18,10 @@ export interface Settings {
   outDir: string;
   /** `--units` for `track.py`. */
   units: Units;
+  /** 0-based frame the prompt points are placed on (`--start`). */
+  startFrame: number;
+  /** `--direction`: forward, backward, or both from the start frame. */
+  direction: Direction;
   /** Skip `convert.sh`'s parity check (much faster, but unverified packages). */
   noParity: boolean;
   /** Reveal the output folder in Finder when an export finishes. */
@@ -26,11 +33,14 @@ export interface SettingsPatch {
   videoPath?: unknown;
   outDir?: unknown;
   units?: unknown;
+  startFrame?: unknown;
+  direction?: unknown;
   noParity?: unknown;
   openOnFinish?: unknown;
 }
 
 export const DEFAULT_UNITS: Units = "ane";
+export const DEFAULT_DIRECTION: Direction = "forward";
 
 /** The work folder the README's examples produce, preferring the one this machine already has. */
 function defaultWorkDir(): string {
@@ -44,6 +54,8 @@ export function defaultSettings(repoRoot: string): Settings {
     videoPath: "",
     outDir: path.join(repoRoot, "masks"),
     units: DEFAULT_UNITS,
+    startFrame: 0,
+    direction: DEFAULT_DIRECTION,
     noParity: false,
     openOnFinish: true,
   };
@@ -51,6 +63,10 @@ export function defaultSettings(repoRoot: string): Settings {
 
 function isUnits(value: unknown): value is Units {
   return typeof value === "string" && (UNITS as readonly string[]).includes(value);
+}
+
+function isDirection(value: unknown): value is Direction {
+  return typeof value === "string" && (DIRECTIONS as readonly string[]).includes(value);
 }
 
 /**
@@ -71,6 +87,11 @@ export function normalizeSettings(input: unknown, repoRoot: string): Settings {
     videoPath,
     outDir,
     units: isUnits(raw.units) ? raw.units : defaults.units,
+    startFrame:
+      typeof raw.startFrame === "number" && Number.isInteger(raw.startFrame) && raw.startFrame >= 0
+        ? raw.startFrame
+        : defaults.startFrame,
+    direction: isDirection(raw.direction) ? raw.direction : defaults.direction,
     noParity: typeof raw.noParity === "boolean" ? raw.noParity : defaults.noParity,
     openOnFinish: typeof raw.openOnFinish === "boolean" ? raw.openOnFinish : defaults.openOnFinish,
   };
@@ -102,6 +123,15 @@ export function applyPatch(current: Settings, patch: SettingsPatch): Settings {
   if (patch.units !== undefined) {
     if (!isUnits(patch.units)) throw new Error("Invalid compute unit");
     next.units = patch.units;
+  }
+  if (patch.startFrame !== undefined) {
+    const frame = Number(patch.startFrame);
+    if (!Number.isInteger(frame) || frame < 0) throw new Error("Start frame must be a non-negative integer");
+    next.startFrame = frame;
+  }
+  if (patch.direction !== undefined) {
+    if (!isDirection(patch.direction)) throw new Error("Invalid direction");
+    next.direction = patch.direction;
   }
   if (patch.noParity !== undefined) {
     if (typeof patch.noParity !== "boolean") throw new Error("Invalid parity setting");

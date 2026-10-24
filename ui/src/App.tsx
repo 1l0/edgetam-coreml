@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { Show, createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { api, errorMessage, type StateResponse } from "./api.ts";
 import { EnvironmentPanel } from "./components/EnvironmentPanel.tsx";
 import { ExportPanel } from "./components/ExportPanel.tsx";
@@ -32,6 +32,8 @@ export default function App(): JSX.Element {
   const [videoError, setVideoError] = createSignal<string | null>(null);
   const [points, setPoints] = createSignal<PromptPoint[]>([]);
   const [mode, setMode] = createSignal<1 | 0>(1);
+  /** Seconds into the video, as reported by the player; "Use playhead" turns it into a frame. */
+  const [playhead, setPlayhead] = createSignal(0);
   const [banner, setBanner] = createSignal<string | null>(null);
   const [bootError, setBootError] = createSignal<string | null>(null);
   const [now, setNow] = createSignal(Date.now());
@@ -155,6 +157,26 @@ export default function App(): JSX.Element {
     setPoints((previous) => [...previous, { x, y, label: mode() }]);
   }
 
+  const startFrame = () => state()?.settings.startFrame ?? 0;
+  const lastFrame = () => Math.max(0, (meta()?.frames ?? 1) - 1);
+
+  async function setStartFrame(frame: number): Promise<void> {
+    if (!meta()) return;
+    const clamped = Math.max(0, Math.min(Math.round(frame) || 0, lastFrame()));
+    if (clamped === startFrame()) return;
+    // Points describe the prompt frame, so a new one invalidates them.
+    if (points().length > 0) {
+      setPoints([]);
+      showBanner(`Start frame set to ${clamped}; points cleared.`);
+    }
+    await patch({ startFrame: clamped });
+  }
+
+  async function usePlayhead(): Promise<void> {
+    const fps = meta()?.fps || 30;
+    await setStartFrame(Math.round(playhead() * fps));
+  }
+
   // Settings persist server-side; the path in state is the single source of truth for what is loaded.
   createEffect(
     () => state()?.settings.videoPath ?? "",
@@ -167,14 +189,24 @@ export default function App(): JSX.Element {
         return;
       }
       if (path === loadedVideo) return;
+      const switching = loadedVideo !== "";
       loadedVideo = path;
       setPoints([]);
       setMeta(null);
       setVideoError(null);
+      // A different video starts its own timeline; the old prompt frame means nothing there.
+      if (switching) void patch({ startFrame: 0 });
       void api
         .videoMeta(path)
         .then((next) => {
-          if (loadedVideo === path) setMeta(next);
+          if (loadedVideo !== path) return;
+          setMeta(next);
+          // Settings can outlive the video they were set for; clamp to this one. Read the current frame once,
+          // untracked, because this runs after an await.
+          const frame = untrack(() => state()?.settings.startFrame ?? 0);
+          if (next.frames !== null && frame >= next.frames) {
+            void patch({ startFrame: Math.max(0, next.frames - 1) });
+          }
         })
         .catch((error: unknown) => {
           if (loadedVideo === path) setVideoError(errorMessage(error));
@@ -337,8 +369,10 @@ export default function App(): JSX.Element {
                     streamUrl={api.streamUrl(video().path)}
                     posterUrl={api.posterUrl(video().path)}
                     points={points()}
+                    promptFrame={Math.min(startFrame(), Math.max(0, (video().frames ?? 1) - 1))}
                     locked={running()}
                     onAdd={addPoint}
+                    onTime={setPlayhead}
                     onRemove={(index) => {
                       if (running()) return;
                       setPoints((previous) => previous.filter((_, at) => at !== index));
@@ -390,6 +424,10 @@ export default function App(): JSX.Element {
                 points={points()}
                 mode={mode()}
                 disabled={running()}
+                startFrame={startFrame()}
+                maxFrame={lastFrame()}
+                onStartFrame={(frame) => void setStartFrame(frame)}
+                onUsePlayhead={() => void usePlayhead()}
                 onMode={setMode}
                 onFlip={(index) => {
                   if (running()) return;
@@ -420,6 +458,7 @@ export default function App(): JSX.Element {
                 }}
                 onOutDir={(value) => void patch({ outDir: value })}
                 onUnits={(value) => void patch({ units: value })}
+                onDirection={(value) => void patch({ direction: value })}
                 onOpenOnFinish={(value) => void patch({ openOnFinish: value })}
                 onExport={() => void startTrack()}
                 onCancel={() => void cancel()}

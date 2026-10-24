@@ -50,8 +50,18 @@ To track an object:
 ```
 
 This writes `masks/00000.png…` and an overlay for each frame. `--video` is a video file or a folder of JPEGs, and
-`--point` is a pixel on the first frame. Add `--negative X,Y` (repeatable) to exclude something. A single click picks
-the best of three nested masks (a shirt rather than the whole person), so use more points to get the whole object.
+`--point` is a pixel on the start frame (frame 0 by default). Add `--negative X,Y` (repeatable) to exclude something.
+A single click picks the best of three nested masks (a shirt rather than the whole person), so use more points to get
+the whole object.
+
+`--start N` puts the prompt on frame N instead of frame 0, and `--direction forward|backward|both` chooses where the
+tracker goes from there. `backward` walks from the prompt frame to frame 0, and `both` runs the two passes from the
+same seed with separate memory banks, the way SAM 2 propagates in either direction:
+
+```bash
+~/work/edgetam/venv/bin/python examples/track.py --models ~/work/edgetam/out \
+    --video clip.mp4 --start 300 --direction both --point 400,300
+```
 
 The demo above is the surfer clip at 15 fps, cropped to 960×540, with one click:
 
@@ -109,10 +119,11 @@ The docstring of [`edgetam_coreml/convert.py`](edgetam_coreml/convert.py) has ev
 [`examples/track.py`](examples/track.py) is the whole loop, with coremltools alone:
 
 1. Run the image encoder on every frame.
-2. On the prompted frame, run the initializer with the click, then the memory encoder on its mask (binarized). That
-   gives the seed memory and pointer.
-3. On every later frame, run the propagator with the bank. Its mask is the answer, and its memory and pointer join
-   the bank.
+2. On the prompt frame (`--start`), run the initializer with the click, then the memory encoder on its mask
+   (binarized). That gives the seed memory and pointer.
+3. On every later frame in that direction, run the propagator with the bank. Its mask is the answer, and its memory
+   and pointer join the bank. `--direction backward` walks down to frame 0, and `both` makes two passes from the same
+   seed, each with its own bank.
 
 The bank is assembled the way SAM 2 does it:
 
