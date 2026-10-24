@@ -2,12 +2,12 @@
 
     python examples/track.py --models <packages folder> --video <folder of JPEGs | video file> --point X,Y \
         [--point X,Y ...] [--negative X,Y ...] [--out masks] [--units ane|gpu|all|cpu] [--start N] \
-        [--direction forward|backward|both]
+        [--direction forward|backward|both] [--no-overlay]
 
 X, Y are pixels of frame N (--start, 0 by default); --point and --negative repeat. One point picks the best of three
 nested masks, several points give one mask. Writes masks/00000.png… (the object in white, at the video's size) and an
-overlay JPEG per frame, named by the video's own frame index. A video file needs ffmpeg. This is the whole tracking
-loop, in the order the packages expect:
+overlay JPEG per frame, named by the video's own frame index; --no-overlay writes the masks alone. A video file needs
+ffmpeg. This is the whole tracking loop, in the order the packages expect:
 
 1. Every frame: the image encoder on the frame resized to 1024².
 2. The start frame: the initializer with the clicks → the mask, its object pointer; the memory encoder on that mask
@@ -70,6 +70,8 @@ def main():
     parser.add_argument("--units", default="ane", choices=["ane", "gpu", "all", "cpu"])
     parser.add_argument("--start", type=int, default=0, help="frame the prompt is placed on (0 by default)")
     parser.add_argument("--direction", default="forward", choices=["forward", "backward", "both"])
+    parser.add_argument("--no-overlay", action="store_true",
+                        help="write only the masks, not the tinted overlay JPEGs")
     args = parser.parse_args()
 
     import coremltools as ct
@@ -149,9 +151,10 @@ def main():
                     frame.size, Image.BILINEAR)
                 mask = Image.fromarray(((np.asarray(logits) > 0) * 255).astype(np.uint8))
                 mask.save(os.path.join(args.out, f"{index:05d}.png"))
-                tint = Image.new("RGB", frame.size, (255, 64, 64))
-                Image.composite(Image.blend(frame, tint, 0.5), frame, mask).save(
-                    os.path.join(args.out, f"overlay-{index:05d}.jpg"), quality=90)
+                if not args.no_overlay:
+                    tint = Image.new("RGB", frame.size, (255, 64, 64))
+                    Image.composite(Image.blend(frame, tint, 0.5), frame, mask).save(
+                        os.path.join(args.out, f"overlay-{index:05d}.jpg"), quality=90)
                 print(f"frame {index}: object score {float(out['object_score'].ravel()[0]):.1f}, "
                       f"{int((np.asarray(mask) > 0).sum())} px", flush=True)
     finally:

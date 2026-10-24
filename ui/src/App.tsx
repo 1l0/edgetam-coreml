@@ -34,6 +34,13 @@ export default function App(): JSX.Element {
   const [mode, setMode] = createSignal<1 | 0>(1);
   /** Seconds into the video, as reported by the player; "Use playhead" turns it into a frame. */
   const [playhead, setPlayhead] = createSignal(0);
+  /** Stage mode: the point editor, or the written masks composited over the video. */
+  const [preview, setPreview] = createSignal(false);
+  /** Frames that already have a mask, as [first, last] ranges, for the scrubber indicator. */
+  const [coverage, setCoverage] = createSignal<{ count: number; ranges: Array<[number, number]> }>({
+    count: 0,
+    ranges: [],
+  });
   const [banner, setBanner] = createSignal<string | null>(null);
   const [bootError, setBootError] = createSignal<string | null>(null);
   const [now, setNow] = createSignal(Date.now());
@@ -126,6 +133,9 @@ export default function App(): JSX.Element {
     try {
       const result = await api.startTrack(points());
       ingest(result.job);
+      // Watch the masks arrive while the export runs.
+      setPreview(true);
+      void refreshMasks(true);
     } catch (error) {
       showBanner(errorMessage(error));
     }
@@ -137,6 +147,28 @@ export default function App(): JSX.Element {
       ingest(result.job);
     } catch (error) {
       showBanner(errorMessage(error));
+    }
+  }
+
+  let masksAt = 0;
+  let masksBusy = false;
+
+  /** Reads which frames have masks so the scrubber can show coverage; throttled during an export. */
+  async function refreshMasks(force = false, dir?: string): Promise<void> {
+    // `dir` is passed by the effect below so that reading state() stays out of its callback.
+    const target = dir ?? state()?.settings.outDir;
+    if (!target) return;
+    const now = Date.now();
+    if (!force && now - masksAt < 900) return;
+    if (masksBusy) return;
+    masksAt = now;
+    masksBusy = true;
+    try {
+      setCoverage(await api.masks(target));
+    } catch {
+      // The folder can be missing before the first export; the indicator simply stays empty.
+    } finally {
+      masksBusy = false;
     }
   }
 
@@ -186,6 +218,7 @@ export default function App(): JSX.Element {
         setMeta(null);
         setVideoError(null);
         setPoints([]);
+        setPreview(false);
         return;
       }
       if (path === loadedVideo) return;
@@ -194,6 +227,7 @@ export default function App(): JSX.Element {
       setPoints([]);
       setMeta(null);
       setVideoError(null);
+      setPreview(false);
       // A different video starts its own timeline; the old prompt frame means nothing there.
       if (switching) void patch({ startFrame: 0 });
       void api
@@ -211,6 +245,15 @@ export default function App(): JSX.Element {
         .catch((error: unknown) => {
           if (loadedVideo === path) setVideoError(errorMessage(error));
         });
+    },
+  );
+
+  // Keep the coverage bar in step with the export folder, including a folder that changes under us.
+  createEffect(
+    () => state()?.settings.outDir ?? "",
+    (dir) => {
+      setCoverage({ count: 0, ranges: [] });
+      if (dir) void refreshMasks(true, dir);
     },
   );
 
@@ -238,7 +281,12 @@ export default function App(): JSX.Element {
         if (next) {
           const wasRunning = job()?.running ?? false;
           ingest(next);
-          if (wasRunning && !next.running && next.kind === "convert") void refresh();
+          if (!wasRunning && next.running && next.kind === "track") setPreview(true);
+          if (next.kind === "track" && (next.running || (wasRunning && !next.running))) void refreshMasks();
+          if (wasRunning && !next.running) {
+            if (next.kind === "convert") void refresh();
+            if (next.kind === "track" && next.phase === "done") setPreview(true);
+          }
         }
       }
     } catch {
@@ -371,6 +419,12 @@ export default function App(): JSX.Element {
                     points={points()}
                     promptFrame={Math.min(startFrame(), Math.max(0, (video().frames ?? 1) - 1))}
                     locked={running()}
+                    preview={preview()}
+                    tracking={job()?.kind === "track" && (job()?.running ?? false)}
+                    coverage={coverage().ranges}
+                    maskKey={current().settings.outDir}
+                    maskUrl={(frame) => api.maskUrl(current().settings.outDir, frame)}
+                    onPreview={setPreview}
                     onAdd={addPoint}
                     onTime={setPlayhead}
                     onRemove={(index) => {
@@ -459,6 +513,7 @@ export default function App(): JSX.Element {
                 onOutDir={(value) => void patch({ outDir: value })}
                 onUnits={(value) => void patch({ units: value })}
                 onDirection={(value) => void patch({ direction: value })}
+                onWriteOverlays={(value) => void patch({ writeOverlays: value })}
                 onOpenOnFinish={(value) => void patch({ openOnFinish: value })}
                 onExport={() => void startTrack()}
                 onCancel={() => void cancel()}

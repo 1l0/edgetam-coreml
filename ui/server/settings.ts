@@ -22,6 +22,8 @@ export interface Settings {
   startFrame: number;
   /** `--direction`: forward, backward, or both from the start frame. */
   direction: Direction;
+  /** Write `overlay-*.jpg` next to each mask. Off by default: the app previews masks over the video instead. */
+  writeOverlays: boolean;
   /** Skip `convert.sh`'s parity check (much faster, but unverified packages). */
   noParity: boolean;
   /** Reveal the output folder in Finder when an export finishes. */
@@ -35,6 +37,7 @@ export interface SettingsPatch {
   units?: unknown;
   startFrame?: unknown;
   direction?: unknown;
+  writeOverlays?: unknown;
   noParity?: unknown;
   openOnFinish?: unknown;
 }
@@ -56,6 +59,7 @@ export function defaultSettings(repoRoot: string): Settings {
     units: DEFAULT_UNITS,
     startFrame: 0,
     direction: DEFAULT_DIRECTION,
+    writeOverlays: false,
     noParity: false,
     openOnFinish: true,
   };
@@ -92,6 +96,7 @@ export function normalizeSettings(input: unknown, repoRoot: string): Settings {
         ? raw.startFrame
         : defaults.startFrame,
     direction: isDirection(raw.direction) ? raw.direction : defaults.direction,
+    writeOverlays: typeof raw.writeOverlays === "boolean" ? raw.writeOverlays : defaults.writeOverlays,
     noParity: typeof raw.noParity === "boolean" ? raw.noParity : defaults.noParity,
     openOnFinish: typeof raw.openOnFinish === "boolean" ? raw.openOnFinish : defaults.openOnFinish,
   };
@@ -132,6 +137,10 @@ export function applyPatch(current: Settings, patch: SettingsPatch): Settings {
   if (patch.direction !== undefined) {
     if (!isDirection(patch.direction)) throw new Error("Invalid direction");
     next.direction = patch.direction;
+  }
+  if (patch.writeOverlays !== undefined) {
+    if (typeof patch.writeOverlays !== "boolean") throw new Error("Invalid overlay setting");
+    next.writeOverlays = patch.writeOverlays;
   }
   if (patch.noParity !== undefined) {
     if (typeof patch.noParity !== "boolean") throw new Error("Invalid parity setting");

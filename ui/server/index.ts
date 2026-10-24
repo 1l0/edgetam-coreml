@@ -1,4 +1,4 @@
-import { createReadStream, mkdirSync, statSync } from "node:fs";
+import { createReadStream, mkdirSync, readdirSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { startConvert } from "./convert.ts";
@@ -8,7 +8,7 @@ import { JobManager } from "./jobs.ts";
 import { probeVideo, posterFile, streamVideo } from "./media.ts";
 import { SettingsStore, type SettingsPatch } from "./settings.ts";
 import { normalizePoints, startTracking } from "./track.ts";
-import { exists, isFile, isInside, normalizePath, spawnDetached } from "./util.ts";
+import { exists, isDirectory, isFile, isInside, normalizePath, spawnDetached } from "./util.ts";
 
 const uiRoot = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(uiRoot, "..");
@@ -139,6 +139,41 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         "cache-control": "private, max-age=60",
       });
       createReadStream(poster).pipe(res);
+      return;
+    }
+
+    case "GET /api/masks": {
+      const dir = requirePath(url.searchParams.get("path"), "Mask folder");
+      const ranges: Array<[number, number]> = [];
+      let count = 0;
+      if (isDirectory(dir)) {
+        const frames = readdirSync(dir)
+          .filter((name) => /^\d{5}\.png$/.test(name))
+          .map((name) => Number(name.slice(0, 5)))
+          .sort((a, b) => a - b);
+        count = frames.length;
+        for (const frame of frames) {
+          const last = ranges[ranges.length - 1];
+          if (last && frame === last[1] + 1) last[1] = frame;
+          else ranges.push([frame, frame]);
+        }
+      }
+      return json(res, 200, { count, ranges });
+    }
+
+    case "GET /api/mask": {
+      const dir = requirePath(url.searchParams.get("path"), "Mask folder");
+      const frame = Number(url.searchParams.get("frame"));
+      if (!Number.isInteger(frame) || frame < 0 || frame > 99999) return fail(res, 400, "Invalid frame number");
+      const file = path.join(dir, `${String(frame).padStart(5, "0")}.png`);
+      if (!isFile(file)) return fail(res, 404, `No mask for frame ${frame}`);
+      const stat = statSync(file);
+      res.writeHead(200, {
+        "content-type": "image/png",
+        "content-length": stat.size,
+        "cache-control": "private, max-age=3600",
+      });
+      createReadStream(file).pipe(res);
       return;
     }
 

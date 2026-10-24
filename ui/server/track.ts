@@ -111,6 +111,7 @@ export function startTracking(job: Job, context: TrackContext): void {
         "--start", String(start),
         "--direction", settings.direction,
       ];
+      if (!settings.writeOverlays) args.push("--no-overlay");
       for (const point of points.filter((point) => point.label === 1)) {
         args.push("--point", `${Math.round(point.x)},${Math.round(point.y)}`);
       }

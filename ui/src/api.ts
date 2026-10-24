@@ -48,6 +48,11 @@ export const api = {
 
   posterUrl: (path: string) => `/api/video/poster?path=${query(path)}`,
 
+  maskUrl: (outDir: string, frame: number) => `/api/mask?path=${query(outDir)}&frame=${frame}`,
+
+  masks: (outDir: string) =>
+    request<{ count: number; ranges: Array<[number, number]> }>(`/api/masks?path=${query(outDir)}`),
+
   streamUrl: (path: string) => `/api/video/stream?path=${query(path)}`,
 
   startConvert: () => request<{ job: JobSnapshot }>("/api/convert/start", { method: "POST", body: "{}" }),

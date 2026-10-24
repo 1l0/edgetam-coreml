@@ -49,7 +49,8 @@ To track an object:
     --video clip.mp4 --point 400,300
 ```
 
-This writes `masks/00000.png…` and an overlay for each frame. `--video` is a video file or a folder of JPEGs, and
+This writes `masks/00000.png…` and an overlay for each frame (`--no-overlay` writes the masks alone). `--video` is a
+video file or a folder of JPEGs, and
 `--point` is a pixel on the start frame (frame 0 by default). Add `--negative X,Y` (repeatable) to exclude something.
 A single click picks the best of three nested masks (a shirt rather than the whole person), so use more points to get
 the whole object.
@@ -73,8 +74,9 @@ ffmpeg -t 22 -i surf.ogv -vf fps=15,crop=960:540:640:270 -q:v 2 frames/%05d.jpg
 ### GUI
 
 [`ui/`](ui/) is a local web UI over the same loop: choose the work folder, run the `convert.sh` initialization, open a
-video, click points on the first frame, and export while a progress bar follows the frames. It runs `convert.sh` and
-`examples/track.py` itself, so its output is identical to the commands above.
+video, click points on the prompt frame, and export while a progress bar follows the frames. The masks play back over
+the source video as they are written, so the tinted overlay JPEGs are off by default. It runs `convert.sh` and `examples/track.py`
+itself, so its output is identical to the commands above.
 
 ```bash
 cd ui

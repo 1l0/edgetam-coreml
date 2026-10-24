@@ -26,7 +26,7 @@ Requirements: macOS, Node 22.12+, `ffmpeg`/`ffprobe` on `PATH`, and the work fol
 | UI | Command |
 |---|---|
 | Initialize | `./convert.sh <work>` (plus `--no-parity` when the parity check is off) |
-| Track and export | `examples/track.py --models <work>/out --video <video> --start <frame> --direction <dir> --point/--negative … --out <out> --units <unit>` |
+| Track and export | `examples/track.py --models <work>/out --video <video> --start <frame> --direction <dir> --point/--negative … --out <out> --units <unit>` (plus `--no-overlay` unless overlays are on) |
 | Open folder | `open <out>` (also on completion, unless "Open the folder when done" is off) |
 | Browse | `osascript` `choose folder` / `choose file` |
 
@@ -40,6 +40,16 @@ initializer accepts **1–16 points in total** (object + background), so the edi
 **Direction** chooses what gets exported from the start frame: `Forward` to the last frame, `Backward` down to frame 0,
 or `Both` (two passes from the same seed, each with its own memory bank, as SAM 2 does). The line under the control
 shows the frames that will be written.
+
+**Preview** on the video composites the written masks over the source, at 50% red, and follows the player. It turns
+on as soon as an export starts, so the frames can be checked while they are written; a frame that is not on disk yet
+retries until it appears. The scrubber itself shows which frames already have a mask: tracked frames are a mint fill
+on the dark track, growing in whichever direction the export runs. The thumb is the only playback indicator, so
+coverage reads the same on either side of it.
+
+The masks are enough for the preview, so **Write overlay JPEGs** is off by default: the folder keeps ~10 KB per frame
+instead of ~370 KB, and the preview has no JPEG artifacts. Turn overlays on when you need a ready-made image for
+QuickTime, Finder or an editor.
 
 ## How it works
 
@@ -72,6 +82,8 @@ scripts/dev.ts              runs Vite and the API together
 - Points are not saved between page loads; a new video or start frame clears them.
 - Existing masks in the export folder are overwritten by index; extra frames from a longer earlier run stay. The job
   log says so when it finds them.
+- The preview reads `NNNNN.png` from the export folder through `/api/mask`; it is a half-resolution canvas tint, not a
+  rendered file.
 - The first tracked frame waits for Python and Core ML to load the four packages (tens of seconds); the progress label
   says Loading models until frame 0 arrives.
 - macOS only: `osascript`, `open`, and the Neural Engine.

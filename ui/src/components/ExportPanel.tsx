@@ -29,6 +29,7 @@ export function ExportPanel(props: {
   onOutDir: (value: string) => void;
   onUnits: (value: Units) => void;
   onDirection: (value: Direction) => void;
+  onWriteOverlays: (value: boolean) => void;
   onOpenOnFinish: (value: boolean) => void;
   onExport: () => void;
   onCancel: () => void;
@@ -120,11 +121,21 @@ export function ExportPanel(props: {
       <p class="hint mono">{summary()}</p>
 
       <Switch
+        checked={props.settings.writeOverlays}
+        label="Write overlay JPEGs"
+        disabled={trackRunning()}
+        onChange={props.onWriteOverlays}
+      />
+      <Switch
         checked={props.settings.openOnFinish}
         label="Open the folder when done"
         disabled={trackRunning()}
         onChange={props.onOpenOnFinish}
       />
+      <p class="hint">
+        Overlays are only for viewing outside the app. Leave them off and press <strong>Preview</strong> on the
+        video to see the masks composited over the source; the folder keeps the masks alone.
+      </p>
 
       <Show when={blockers().length > 0 && !anyRunning()}>
         <ul class="blockers">

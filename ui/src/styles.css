@@ -271,6 +271,52 @@ kbd {
   cursor: default;
 }
 
+.stage-overlay.hidden {
+  display: none;
+}
+
+/* The mask preview: a transparent canvas over the video, tinted per frame. */
+.stage-mask {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.stage-modes {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(6, 20, 18, 0.72);
+  border: 1px solid rgba(94, 234, 212, 0.25);
+  backdrop-filter: blur(8px);
+}
+
+.stage-modes button {
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.stage-modes button:hover {
+  color: var(--text);
+}
+
+.stage-modes button.active {
+  color: var(--accent);
+  background: rgba(94, 234, 212, 0.16);
+}
+
 .marker {
   cursor: pointer;
 }
@@ -451,9 +497,34 @@ kbd {
   white-space: nowrap;
 }
 
-.scrub {
+.scrub-wrap {
+  position: relative;
   flex: 1;
   min-width: 60px;
+  height: 18px;
+}
+
+/* The scrubber's own track: dark where nothing is tracked, mint where a mask exists. The input above it is
+   transparent and only draws the thumb, which is the only playback indicator. */
+.scrub-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: #2a313c;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scrub-covered {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: rgba(94, 234, 212, 0.55);
 }
 
 /* ── panels ────────────────────────────────────────────────────────────── */
@@ -1342,25 +1413,23 @@ input[type="range"]:disabled {
   opacity: 0.4;
 }
 
-/* the scrubber carries its own progress fill so the played portion reads at a glance */
+/* Sits over .scrub-track: the native track is invisible, the thumb is not. */
 .scrub {
-  --fill: 0%;
-  height: 4px;
-  margin: 7px 0;
-  border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    rgba(94, 234, 212, 0.8) 0 var(--fill),
-    #2a313c var(--fill) 100%
-  );
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
 }
 
-.scrub::-webkit-slider-runnable-track {
+/* `input.scrub` outranks `input[type="range"]` above, whose opaque track would hide .scrub-track. */
+input.scrub::-webkit-slider-runnable-track {
   height: 4px;
   background: transparent;
 }
 
-.scrub::-webkit-slider-thumb {
+input.scrub::-webkit-slider-thumb {
   width: 11px;
   height: 11px;
   margin-top: -3.5px;
